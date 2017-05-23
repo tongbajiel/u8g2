@@ -45,16 +45,32 @@ static const uint8_t u8x8_d_pcf8812_96x65_init_seq[] = {
     
   U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
   
-  U8X8_C(0x020),		                /* activate chip (PD=0), horizontal increment (V=0), enter normal command set (H=0) */
-  U8X8_C(0x008),		                /* blank display */
-  
-  U8X8_C(0x021),		                /* activate chip (PD=0), horizontal increment (V=0), enter extended command set (H=1) */
-  U8X8_C(0x006),		                /* temp. control: b10 = 2 */
-  U8X8_C(0x013),		                /* bias system, 0x010..0x07 1:48 */
-  U8X8_C(0x09f),				/* contrast setting, 0..127 */
-  //U8X8_CA(0x020 | 2, 0x080 | 0),				/* contrast setting, pcf8814 */
+  // INITIALISE SEQUENCE FOR PCF8812
+	  U8X8_C(0x020),		                /* activate chip (PD=0), horizontal increment (V=0), enter normal command set (H=0) */
+	  U8X8_C(0x008),		                /* blank display */
 
-  U8X8_C(0x024),		                /* deactivate chip (PD=1), horizontal increment (V=0), enter normal command set (H=0) */
+	  U8X8_C(0x021),		                /* activate chip (PD=0), horizontal increment (V=0), enter extended command set (H=1) */
+	  U8X8_C(0x006),		                /* temp. control: b10 = 2 */
+	  U8X8_C(0x013),		                /* bias system, 0x010..0x07 1:48 */
+	  U8X8_C(0x09f),				/* contrast setting, 0..127 */
+	  //U8X8_CA(0x020 | 2, 0x080 | 0),				/* contrast setting, pcf8814 */
+
+	  U8X8_C(0x024),		                /* deactivate chip (PD=1), horizontal increment (V=0), enter normal command set (H=0) */
+ 
+  // INITIALISE SEQUENCE FOR PCF8814
+/*
+  	U8X8_C(0x0E2),  			// Internal reset 
+ 	U8X8_C(0x02F),				// Charge pump ON  
+  	U8X8_C(0x024),				// Vop MSB *dont change*  
+  	U8X8_C(0x080),				// Vop LSB *here you can change contrast, MAX is 0x09F*  
+  	U8X8_C(0x0C0),				// Mirror Y axis, activate is 0x0c8  
+  	U8X8_C(0x0A0),				// Mirror X axis, activate is 0x0A1  *ONLY IF DISPLAY SUPPORT*
+	  					// some manufacture disable Mirror X axis function 
+	// Pixel mode inversion * default is 0xA7
+  		// U8X8_C(0x0A6),				// Inverted pixel, White on Black
+ 	U8X8_C(0x0A4),				// Normal Display *all pixel in off position*
+  	U8X8_C(0x0AF),				// Display ON
+*/
     
   U8X8_END_TRANSFER(),             	/* disable chip */
   U8X8_END()             			/* end of sequence */
@@ -62,17 +78,27 @@ static const uint8_t u8x8_d_pcf8812_96x65_init_seq[] = {
 
 static const uint8_t u8x8_d_pcf8812_96x65_powersave0_seq[] = {
   U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
-  U8X8_C(0x020),		                /* power on */
-  U8X8_C(0x00c),		                /* display on */
+	// For PCF8812
+		  U8X8_C(0x020),		                /* power on */
+		  U8X8_C(0x00c),		                /* display on */
+	// For PCF8814
+	  /*
+	 	 U8X8_C(0x0AF),		                // display on 
+	  */
   U8X8_END_TRANSFER(),             	/* disable chip */
   U8X8_END()             			/* end of sequence */
 };
 
 static const uint8_t u8x8_d_pcf8812_96x65_powersave1_seq[] = {
   U8X8_START_TRANSFER(),             	/* enable chip, delay is part of the transfer start */
-  U8X8_C(0x020),		                /* power on */
-  U8X8_C(0x008),		                /* blank display */
-  U8X8_C(0x024),		                /* power down */
+	// For PCF8812
+		  U8X8_C(0x020),		                /* power on */
+		  U8X8_C(0x008),		                /* blank display */
+		  U8X8_C(0x024),		                /* power down */
+	// For PCF8814
+	  /*
+	  	  U8X8_C(0x0AE),		                // display off 
+	  */
   U8X8_END_TRANSFER(),             	/* disable chip */
   U8X8_END()             			/* end of sequence */
 };
@@ -116,8 +142,14 @@ static uint8_t u8x8_d_pcf8812_96x65_generic(u8x8_t *u8x8, uint8_t msg, uint8_t a
 #ifdef U8X8_WITH_SET_CONTRAST
     case U8X8_MSG_DISPLAY_SET_CONTRAST:
       u8x8_cad_StartTransfer(u8x8);
-      u8x8_cad_SendCmd(u8x8, 0x021 );    /* command mode, extended function set */
-      u8x8_cad_SendArg(u8x8, (arg_int>>1)|0x80 );	/* 0..127 for contrast */
+	// For PCF8812
+		u8x8_cad_SendCmd(u8x8, 0x021 );    /* command mode, extended function set */
+		u8x8_cad_SendArg(u8x8, (arg_int>>1)|0x80 );	/* 0..127 for contrast */
+	// For PCF8814
+	/*
+		u8x8_cad_SendCmd(u8x8, 0x024 );    // Vop MSB
+		u8x8_cad_SendArg(u8x8, (arg_int>>0x01F)|0x80 );	// 0..30 for contrast
+	*/
       u8x8_cad_EndTransfer(u8x8);
       break;
 #endif
@@ -126,10 +158,17 @@ static uint8_t u8x8_d_pcf8812_96x65_generic(u8x8_t *u8x8, uint8_t msg, uint8_t a
       x = ((u8x8_tile_t *)arg_ptr)->x_pos;    
       x *= 8;
       x += u8x8->x_offset;
-    
-      u8x8_cad_SendCmd(u8x8, 0x020 );	/* activate chip (PD=0), horizontal increment (V=0), enter normal command set (H=0) */
-      u8x8_cad_SendCmd(u8x8, 0x080 | x);
-      u8x8_cad_SendCmd(u8x8, 0x040 | ((u8x8_tile_t *)arg_ptr)->y_pos);
+		  
+	// For PCF8812
+	      u8x8_cad_SendCmd(u8x8, 0x020 );	/* activate chip (PD=0), horizontal increment (V=0), enter normal command set (H=0) */
+	      u8x8_cad_SendCmd(u8x8, 0x080 | x);
+	      u8x8_cad_SendCmd(u8x8, 0x040 | ((u8x8_tile_t *)arg_ptr)->y_pos);
+	// For PCF8814
+	/*
+	      u8x8_cad_SendCmd(u8x8, 0x0B0 | (((u8x8_tile_t *)arg_ptr)->y_pos));	// CHANGE_Y-address (ROW)
+	      u8x8_cad_SendCmd(u8x8, 0x000 | (x & 0X00F));				// CHANGE_LSB_X-address, lower 4 bits (COL)
+	      u8x8_cad_SendCmd(u8x8, 0x010 | ((x >> 4) & 0x007));			// CHANGE_MSB_X-address, upper 3 bits (COL)
+	*/
       
       do
       {
